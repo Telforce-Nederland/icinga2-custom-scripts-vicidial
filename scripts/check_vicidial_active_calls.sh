@@ -24,6 +24,11 @@ if [ ! -x "$MYSQL_BIN" ]; then
     exit 3
 fi
 
+TMP_ERR=$(mktemp /tmp/check_vicidial_active_calls.XXXXXX) || {
+    echo "UNKNOWN - could not create temporary error file"
+    exit 3
+}
+
 RESULT=$($MYSQL_BIN \
     --batch \
     --skip-column-names \
@@ -37,12 +42,13 @@ SELECT
   COALESCE(SUM(status = 'LIVE'), 0) AS waiting,
   COALESCE(SUM(status IN ('CLOSER','XFER','LIVE')), 0) AS total
 FROM vicidial_auto_calls;
-" 2>/tmp/check_vicidial_active_calls.err)
+" 2>"$TMP_ERR")
 
 MYSQL_EXIT=$?
+ERROR_MSG=$(cat "$TMP_ERR" 2>/dev/null)
+rm -f "$TMP_ERR"
 
 if [ "$MYSQL_EXIT" -ne 0 ]; then
-    ERROR_MSG=$(cat /tmp/check_vicidial_active_calls.err 2>/dev/null)
     echo "UNKNOWN - MySQL query failed: $ERROR_MSG"
     exit 3
 fi
